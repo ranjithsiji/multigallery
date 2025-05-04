@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikimedia Multiple Image Gallery Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .tab-container {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: 1px solid #ddd;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab.active {
+            background-color: #fff;
+            border-bottom: 1px solid #fff;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-top: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .search-container {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        input[type="text"], select, input[type="number"] {
+            padding: 8px;
+            margin-right: 10px;
+            width: 300px;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #36c;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #2a4b8d;
+        }
+        .results-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .image-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            position: relative;
+            cursor: pointer;
+        }
+        .image-card.selected {
+            border: 2px solid #36c;
+            background-color: #f0f6ff;
+        }
+        .image-card img {
+            width: 100%;
+            height: auto;
+            max-height: 150px;
+            object-fit: contain;
+        }
+        .image-card input[type="checkbox"] {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            cursor: pointer;
+        }
+        .selected-images {
+            margin-top: 30px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+        .selected-images-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .selected-thumbnail {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border: 1px solid #ddd;
+        }
+        .template-options {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+        }
+        .template-options label {
+            display: inline-block;
+            width: 200px;
+            margin-right: 10px;
+            vertical-align: top;
+        }
+        .template-options input, .template-options select {
+            margin-bottom: 10px;
+            width: 200px;
+        }
+        .template-options textarea {
+            width: 200px;
+            height: 60px;
+        }
+        .option-section {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .option-section h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #36c;
+        }
+        #template-output {
+            width: 100%;
+            height: 300px;
+            font-family: monospace;
+            padding: 10px;
+            white-space: pre;
+            overflow: auto;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .pagination button {
+            margin: 0 5px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #36c;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            color: red;
+            margin: 10px 0;
+        }
+        .image-options {
+            margin-top: 20px;
+        }
+        .image-option {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+        }
+        .image-option h5 {
+            margin-top: 0;
+            margin-bottom: 5px;
+        }
+        .color-input-container {
+            display: flex;
+            align-items: center;
+        }
+        .color-input {
+            width: 100px !important;
+            margin-right: 10px !important;
+        }
+        .color-preview {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .color-picker {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .category-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            z-index: 1000;
+            display: none;
+        }
+        .category-suggestion {
+            padding: 8px;
+            cursor: pointer;
+        }
+        .category-suggestion:hover {
+            background-color: #f0f6ff;
+        }
+        .search-category-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        #search-category {
+            width: 200px;
+            margin-right: 10px;
+        }
+        .manual-images-container {
+            margin-bottom: 20px;
+        }
+        .manual-image-input {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .manual-image-input label {
+            width: 60px;
+            margin-right: 10px;
+        }
+        .manual-image-input input {
+            flex-grow: 1;
+        }
+        .reset-button {
+            background-color: #d9534f;
+            margin-left: 10px;
+        }
+        .reset-button:hover {
+            background-color: #c9302c;
+        }
+    </style>
+</head>
+<body>
+    <h1>Wikimedia Multiple Image Gallery Generator</h1>
+    <p>Generate gallery for wikipedia using <a href="https://en.wikipedia.org/wiki/Template:Multiple_image">Multiple image template.</a></p>
+    <hr/>
+    <div class="tab-container">
+        <div class="tab active" data-tab="search">Search Images</div>
+        <div class="tab" data-tab="category">Browse Category</div>
+        <div class="tab" data-tab="manual">Manual Entry</div>
+    </div>
+    
+    <div class="tab-content active" id="search-tab">
+        <div class="search-container">
+            <input type="text" id="search-query" placeholder="Search Wikimedia Commons...">
+            <button id="search-button">Search</button>
+        </div>
+        
+        <div class="loading" id="search-loading">
+            <div class="loading-spinner"></div>
+            <p>Searching...</p>
+        </div>
+        
+        <div class="error" id="search-error"></div>
+        
+        <div class="results-container" id="search-results"></div>
+    </div>
+    
+    <div class="tab-content" id="category-tab">
+        <div class="search-container">
+            <div class="search-category-container">
+                <input type="text" id="search-category" placeholder="Search categories...">
+                <button id="search-category-button">Search</button>
+            </div>
+            <div class="category-suggestions" id="category-suggestions"></div>
+            <input type="text" id="category-query" placeholder="Or enter Wikimedia Commons category...">
+            <button id="category-button">Browse Category</button>
+        </div>
+        
+        <div class="loading" id="category-loading">
+            <div class="loading-spinner"></div>
+            <p>Loading category...</p>
+        </div>
+        
+        <div class="error" id="category-error"></div>
+        
+        <div class="results-container" id="category-results"></div>
+        
+        <div class="pagination" id="category-pagination"></div>
+    </div>
+    
+    <div class="tab-content" id="manual-tab">
+        <div class="search-container">
+            <label for="manual-image-count">Number of Images:</label>
+            <input type="number" id="manual-image-count" min="1" max="20" value="1">
+            <button id="manual-generate-fields">Generate Fields</button>
+        </div>
+        
+        <div class="manual-images-container" id="manual-images-container">
+            <!-- Manual image inputs will be generated here -->
+        </div>
+        
+        <button id="manual-add-images">Add Images</button>
+    </div>
+    
+    <div class="selected-images">
+        <h2>Selected Images</h2>
+        <div class="selected-images-container" id="selected-images"></div>
+        
+        <div class="template-options">
+            <h3>Template Options</h3>
+            
+            <div class="option-section">
+                <h4>Layout Parameters</h4>
+                <label for="total_width">Total Width:</label>
+                <input type="text" id="total_width" value="600"><br>
+                
+                <label for="align">Alignment:</label>
+                <select id="align">
+                    <option value="right">right (default)</option>
+                    <option value="left">left</option>
+                    <option value="center">center</option>
+                    <option value="none">none</option>
+                </select><br>
+                
+                <label for="direction">Direction:</label>
+                <select id="direction">
+                    <option value="horizontal">horizontal (default)</option>
+                    <option value="vertical">vertical</option>
+                </select><br>
+                
+                <label for="background_color">Background Color:</label>
+                <div class="color-input-container">
+                    <input type="text" id="background_color" class="color-input" placeholder="#RRGGBB">
+                    <input type="color" id="background_color_picker" class="color-picker" value="#ffffff">
+                    <div class="color-preview" id="background_color_preview"></div>
+                </div><br>
+                
+                <label for="width">Width (all images):</label>
+                <input type="text" id="width" placeholder="pixels (omit 'px')"><br>
+                
+                <label for="caption_align">Caption Alignment:</label>
+                <select id="caption_align">
+                    <option value="left">left (default)</option>
+                    <option value="center">center</option>
+                    <option value="right">right</option>
+                </select><br>
+                
+                <label for="image_style">Image Style:</label>
+                <input type="text" id="image_style" value="border:1;"><br>
+                
+                <label for="image_gap">Image Gap:</label>
+                <input type="text" id="image_gap" value="5"><br>
+            </div>
+            
+            <div class="option-section">
+                <h4>Header</h4>
+                <label for="header_background">Header Background:</label>
+                <div class="color-input-container">
+                    <input type="text" id="header_background" class="color-input" placeholder="#RRGGBB">
+                    <input type="color" id="header_background_picker" class="color-picker" value="#ffffff">
+                    <div class="color-preview" id="header_background_preview"></div>
+                </div><br>
+                
+                <label for="header_align">Header Alignment:</label>
+                <select id="header_align">
+                    <option value="center">center (default)</option>
+                    <option value="left">left</option>
+                    <option value="right">right</option>
+                </select><br>
+                
+                <label for="header">Header Text:</label>
+                <textarea id="header" placeholder="Header text"></textarea><br>
+            </div>
+            
+            <div class="image-options" id="image-options-container">
+                <!-- Image options will be added here dynamically -->
+            </div>
+            
+            <div class="option-section">
+                <h4>Footer</h4>
+                <label for="footer_background">Footer Background:</label>
+                <div class="color-input-container">
+                    <input type="text" id="footer_background" class="color-input" placeholder="#RRGGBB">
+                    <input type="color" id="footer_background_picker" class="color-picker" value="#ffffff">
+                    <div class="color-preview" id="footer_background_preview"></div>
+                </div><br>
+                
+                <label for="footer_align">Footer Alignment:</label>
+                <select id="footer_align">
+                    <option value="left">left (default)</option>
+                    <option value="center">center</option>
+                    <option value="right">right</option>
+                </select><br>
+                
+                <label for="footer">Footer Text:</label>
+                <textarea id="footer" placeholder="Footer text"></textarea><br>
+            </div>
+            
+            <div class="template-options">
+                <!-- Previous template options remain the same -->
+                <button id="generate-template">Generate Template</button>
+                <button id="reset-button" class="reset-button">Reset All</button>
+            </div>
+        </div>
+        
+        <h3>Template Output</h3>
+        <textarea id="template-output" readonly></textarea>
+        <button id="copy-template">Copy to Clipboard</button>
+    </div>
+    <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; font-size: 0.9em; color: #666;">
+        <p>Multigallery - Gallery Generator using <a href="https://en.wikipedia.org/wiki/Template:Multiple_image">Template:multiple image</a></p>
+        <p> BY : <a href="https://w.wiki/tN">Ranjithsiji</a></p>
+        <p>Source code available at: <a href="https://gitlab.wikimedia.org/toolforge-repos/multigallery
+            " target="_blank">GitHub Repository</a></p>
+        <p>Licensed under the <a href="https://opensource.org/licenses/MIT" target="_blank">MIT License</a></p>
+    </footer>
+    <script>
+        // Global variables
+        let selectedImages = [];
+        let currentCategoryPage = 1;
+        let categoryPageCount = 1;
+        let categorySearchTimeout = null;
+        
+        // DOM elements
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const searchButton = document.getElementById('search-button');
+        const categoryButton = document.getElementById('category-button');
+        const searchCategoryButton = document.getElementById('search-category-button');
+        const manualGenerateFields = document.getElementById('manual-generate-fields');
+        const manualAddImages = document.getElementById('manual-add-images');
+        const searchQuery = document.getElementById('search-query');
+        const searchCategory = document.getElementById('search-category');
+        const manualImageCount = document.getElementById('manual-image-count');
+        const manualImagesContainer = document.getElementById('manual-images-container');
+        const categoryQuery = document.getElementById('category-query');
+        const searchResults = document.getElementById('search-results');
+        const categoryResults = document.getElementById('category-results');
+        const selectedImagesContainer = document.getElementById('selected-images');
+        const generateTemplateButton = document.getElementById('generate-template');
+        const templateOutput = document.getElementById('template-output');
+        const copyTemplateButton = document.getElementById('copy-template');
+        const searchLoading = document.getElementById('search-loading');
+        const categoryLoading = document.getElementById('category-loading');
+        const searchError = document.getElementById('search-error');
+        const categoryError = document.getElementById('category-error');
+        const categoryPagination = document.getElementById('category-pagination');
+        const imageOptionsContainer = document.getElementById('image-options-container');
+        const categorySuggestions = document.getElementById('category-suggestions');
+        
+        // Initialize color pickers
+        function initColorPickers() {
+            // Background color
+            const bgColorInput = document.getElementById('background_color');
+            const bgColorPicker = document.getElementById('background_color_picker');
+            const bgColorPreview = document.getElementById('background_color_preview');
+            
+            bgColorPicker.addEventListener('input', () => {
+                bgColorInput.value = bgColorPicker.value;
+                bgColorPreview.style.backgroundColor = bgColorPicker.value;
+            });
+            
+            bgColorInput.addEventListener('input', () => {
+                if (/^#[0-9A-F]{6}$/i.test(bgColorInput.value)) {
+                    bgColorPicker.value = bgColorInput.value;
+                    bgColorPreview.style.backgroundColor = bgColorInput.value;
+                }
+            });
+            
+            // Header background
+            const headerBgInput = document.getElementById('header_background');
+            const headerBgPicker = document.getElementById('header_background_picker');
+            const headerBgPreview = document.getElementById('header_background_preview');
+            
+            headerBgPicker.addEventListener('input', () => {
+                headerBgInput.value = headerBgPicker.value;
+                headerBgPreview.style.backgroundColor = headerBgPicker.value;
+            });
+            
+            headerBgInput.addEventListener('input', () => {
+                if (/^#[0-9A-F]{6}$/i.test(headerBgInput.value)) {
+                    headerBgPicker.value = headerBgInput.value;
+                    headerBgPreview.style.backgroundColor = headerBgInput.value;
+                }
+            });
+            
+            // Footer background
+            const footerBgInput = document.getElementById('footer_background');
+            const footerBgPicker = document.getElementById('footer_background_picker');
+            const footerBgPreview = document.getElementById('footer_background_preview');
+            
+            footerBgPicker.addEventListener('input', () => {
+                footerBgInput.value = footerBgPicker.value;
+                footerBgPreview.style.backgroundColor = footerBgPicker.value;
+            });
+            
+            footerBgInput.addEventListener('input', () => {
+                if (/^#[0-9A-F]{6}$/i.test(footerBgInput.value)) {
+                    footerBgPicker.value = footerBgInput.value;
+                    footerBgPreview.style.backgroundColor = footerBgInput.value;
+                }
+            });
+        }
+        
+        // Tab switching
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+            });
+        });
+        
+        // Search Wikimedia Commons
+        searchButton.addEventListener('click', async () => {
+            const query = searchQuery.value.trim();
+            if (!query) return;
+            
+            searchLoading.style.display = 'block';
+            searchError.textContent = '';
+            searchResults.innerHTML = '';
+            
+            try {
+                const response = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=50&prop=imageinfo&iiprop=url|dimensions|mime&iiurlwidth=200&format=json&origin=*`);
+                const data = await response.json();
+                
+                if (data.query) {
+                    displayResults(data.query.pages, searchResults);
+                } else {
+                    searchError.textContent = 'No results found.';
+                }
+            } catch (error) {
+                searchError.textContent = 'Error fetching search results.';
+                console.error(error);
+            } finally {
+                searchLoading.style.display = 'none';
+            }
+        });
+        
+        // Search for categories
+        searchCategory.addEventListener('input', () => {
+            clearTimeout(categorySearchTimeout);
+            categorySearchTimeout = setTimeout(() => {
+                searchCategories(searchCategory.value.trim());
+            }, 300);
+        });
+        
+        searchCategoryButton.addEventListener('click', () => {
+            searchCategories(searchCategory.value.trim());
+        });
+        
+        async function searchCategories(query) {
+            if (!query) {
+                categorySuggestions.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&list=allcategories&acprefix=${encodeURIComponent(query)}&aclimit=10&format=json&origin=*`);
+                const data = await response.json();
+                
+                if (data.query && data.query.allcategories.length > 0) {
+                    displayCategorySuggestions(data.query.allcategories);
+                } else {
+                    categorySuggestions.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error fetching category suggestions:', error);
+                categorySuggestions.style.display = 'none';
+            }
+        }
+        
+        function displayCategorySuggestions(categories) {
+            categorySuggestions.innerHTML = '';
+            
+            categories.forEach(category => {
+                const suggestion = document.createElement('div');
+                suggestion.className = 'category-suggestion';
+                suggestion.textContent = category['*'];
+                suggestion.addEventListener('click', () => {
+                    categoryQuery.value = `Category:${category['*']}`;
+                    searchCategory.value = category['*'];
+                    categorySuggestions.style.display = 'none';
+                    categoryButton.click();
+                });
+                categorySuggestions.appendChild(suggestion);
+            });
+            
+            categorySuggestions.style.display = 'block';
+        }
+        
+        // Browse Wikimedia Commons category
+        categoryButton.addEventListener('click', async () => {
+            const category = categoryQuery.value.trim();
+            if (!category) return;
+            
+            currentCategoryPage = 1;
+            await loadCategoryPage(category, currentCategoryPage);
+        });
+        
+        async function loadCategoryPage(category, page) {
+            categoryLoading.style.display = 'block';
+            categoryError.textContent = '';
+            categoryResults.innerHTML = '';
+            categoryPagination.innerHTML = '';
+            
+            try {
+                const offset = (page - 1) * 50;
+                const response = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&generator=categorymembers&gcmtitle=${encodeURIComponent(category)}&gcmlimit=50&gcmoffset=${offset}&prop=imageinfo&iiprop=url|dimensions|mime&iiurlwidth=200&format=json&origin=*`);
+                const data = await response.json();
+                
+                if (data.query) {
+                    displayResults(data.query.pages, categoryResults);
+                    
+                    // Check if there are more pages
+                    if (Object.keys(data.query.pages).length === 50) {
+                        categoryPageCount = page + 1;
+                        createPagination(category);
+                    } else {
+                        categoryPageCount = page;
+                    }
+                } else {
+                    categoryError.textContent = 'Category not found or empty.';
+                }
+            } catch (error) {
+                categoryError.textContent = 'Error fetching category results.';
+                console.error(error);
+            } finally {
+                categoryLoading.style.display = 'none';
+            }
+        }
+        
+        function createPagination(category) {
+            categoryPagination.innerHTML = '';
+            
+            if (currentCategoryPage > 1) {
+                const prevButton = document.createElement('button');
+                prevButton.textContent = 'Previous';
+                prevButton.addEventListener('click', () => {
+                    currentCategoryPage--;
+                    loadCategoryPage(category, currentCategoryPage);
+                });
+                categoryPagination.appendChild(prevButton);
+            }
+            
+            const pageInfo = document.createElement('span');
+            pageInfo.textContent = ` Page ${currentCategoryPage} `;
+            pageInfo.style.margin = '0 10px';
+            categoryPagination.appendChild(pageInfo);
+            
+            if (currentCategoryPage < categoryPageCount) {
+                const nextButton = document.createElement('button');
+                nextButton.textContent = 'Next';
+                nextButton.addEventListener('click', () => {
+                    currentCategoryPage++;
+                    loadCategoryPage(category, currentCategoryPage);
+                });
+                categoryPagination.appendChild(nextButton);
+            }
+        }
+        
+        // Generate manual image input fields
+        manualGenerateFields.addEventListener('click', () => {
+            const count = parseInt(manualImageCount.value);
+            if (count < 1 || count > 20) return;
+            
+            manualImagesContainer.innerHTML = '';
+            
+            for (let i = 1; i <= count; i++) {
+                const div = document.createElement('div');
+                div.className = 'manual-image-input';
+                div.innerHTML = `
+                    <label>Image ${i}:</label>
+                    <input type="text" id="manual-image-${i}" placeholder="Filename (e.g., Example.jpg)">
+                `;
+                manualImagesContainer.appendChild(div);
+            }
+        });
+        
+        // Add manually entered images
+        manualAddImages.addEventListener('click', () => {
+            const inputs = manualImagesContainer.querySelectorAll('input[type="text"]');
+            let hasErrors = false;
+            
+            // Clear previous selections
+            selectedImages = [];
+            imageOptionsContainer.innerHTML = '';
+            selectedImagesContainer.innerHTML = '';
+            
+            inputs.forEach((input, index) => {
+                const filename = input.value.trim();
+                if (filename) {
+                    // Add "File:" prefix if not already present
+                    const fullName = filename.startsWith('File:') ? filename : `File:${filename}`;
+                    selectedImages.push({ 
+                        title: fullName,
+                        thumbUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/SMPTE_Color_Bars.svg/200px-SMPTE_Color_Bars.svg.png' // Default thumbnail
+                    });
+                    createImageOptions(index + 1, fullName);
+                }
+            });
+            
+            updateSelectedImagesDisplay();
+        });
+        
+        // Display search/category results
+        function displayResults(pages, container) {
+            container.innerHTML = '';
+            
+            Object.values(pages).forEach(page => {
+                if (page.imageinfo) {
+                    const imageInfo = page.imageinfo[0];
+                    
+                    const card = document.createElement('div');
+                    card.className = 'image-card';
+                    card.dataset.title = page.title;
+                    card.addEventListener('click', (e) => {
+                        // Don't toggle if clicking on the checkbox directly
+                        if (e.target.tagName !== 'INPUT') {
+                            const checkbox = card.querySelector('input[type="checkbox"]');
+                            checkbox.checked = !checkbox.checked;
+                            checkbox.dispatchEvent(new Event('change'));
+                        }
+                    });
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.addEventListener('change', (e) => {
+                        e.stopPropagation(); // Prevent the card click event from firing
+                        toggleImageSelection(page.title, imageInfo.thumburl, card);
+                    });
+                    
+                    const img = document.createElement('img');
+                    img.src = imageInfo.thumburl;
+                    img.alt = page.title;
+                    
+                    const title = document.createElement('p');
+                    title.textContent = page.title.replace('File:', '');
+                    title.style.fontSize = '0.9em';
+                    title.style.marginTop = '5px';
+                    title.style.whiteSpace = 'nowrap';
+                    title.style.overflow = 'hidden';
+                    title.style.textOverflow = 'ellipsis';
+                    
+                    card.appendChild(checkbox);
+                    card.appendChild(img);
+                    card.appendChild(title);
+                    container.appendChild(card);
+                }
+            });
+        }
+        
+        // Toggle image selection
+        function toggleImageSelection(title, thumbUrl, card) {
+            const index = selectedImages.findIndex(img => img.title === title);
+            
+            if (index === -1) {
+                selectedImages.push({ title, thumbUrl });
+                card.classList.add('selected');
+                createImageOptions(selectedImages.length, title);
+            } else {
+                selectedImages.splice(index, 1);
+                card.classList.remove('selected');
+                removeImageOptions(index + 1);
+                // Renumber remaining image options
+                renumberImageOptions();
+            }
+            
+            updateSelectedImagesDisplay();
+        }
+        
+        // Create options for a specific image
+        function createImageOptions(index, title) {
+            const optionDiv = document.createElement('div');
+            optionDiv.className = 'image-option';
+            optionDiv.id = `image-option-${index}`;
+            
+            const fileName = title.replace('File:', '');
+            
+            optionDiv.innerHTML = `
+                <h5>Image ${index}: ${fileName}</h5>
+                <label for="width${index}">Width:</label>
+                <input type="text" id="width${index}" placeholder="pixels (omit 'px')"><br>
+                
+                <label for="class${index}">CSS Class:</label>
+                <input type="text" id="class${index}" placeholder="skin-invert-image / bg-transparent"><br>
+                
+                <label for="alt${index}">Alt Text:</label>
+                <input type="text" id="alt${index}"><br>
+                
+                <label for="link${index}">Link:</label>
+                <input type="text" id="link${index}"><br>
+                
+                <label for="thumbtime${index}">Thumbtime (video):</label>
+                <input type="text" id="thumbtime${index}" placeholder="HH:MM:SS"><br>
+                
+                <label for="caption${index}">Caption:</label>
+                <textarea id="caption${index}"></textarea>
+            `;
+            
+            imageOptionsContainer.appendChild(optionDiv);
+        }
+        
+        // Remove options for a specific image
+        function removeImageOptions(index) {
+            const optionDiv = document.getElementById(`image-option-${index}`);
+            if (optionDiv) {
+                optionDiv.remove();
+            }
+        }
+        
+        // Renumber image options after deletion
+        function renumberImageOptions() {
+            imageOptionsContainer.innerHTML = '';
+            selectedImages.forEach((image, index) => {
+                createImageOptions(index + 1, image.title);
+            });
+        }
+        
+        // Update the selected images display
+        function updateSelectedImagesDisplay() {
+            selectedImagesContainer.innerHTML = '';
+            
+            selectedImages.forEach((image, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.style.position = 'relative';
+                wrapper.style.cursor = 'pointer';
+                wrapper.addEventListener('click', () => {
+                    // Find and scroll to the corresponding image options
+                    const optionDiv = document.getElementById(`image-option-${index + 1}`);
+                    if (optionDiv) {
+                        optionDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                });
+                
+                const thumbnail = document.createElement('img');
+                thumbnail.className = 'selected-thumbnail';
+                thumbnail.src = image.thumbUrl;
+                thumbnail.alt = image.title;
+                thumbnail.title = image.title;
+                
+                const number = document.createElement('div');
+                number.textContent = index + 1;
+                number.style.position = 'absolute';
+                number.style.top = '0';
+                number.style.left = '0';
+                number.style.backgroundColor = '#36c';
+                number.style.color = 'white';
+                number.style.width = '20px';
+                number.style.height = '20px';
+                number.style.textAlign = 'center';
+                number.style.borderRadius = '0 0 10px 0';
+                
+                wrapper.appendChild(thumbnail);
+                wrapper.appendChild(number);
+                selectedImagesContainer.appendChild(wrapper);
+            });
+        }
+        
+        // Generate the Multiple_image template
+        generateTemplateButton.addEventListener('click', () => {
+            if (selectedImages.length === 0) {
+                templateOutput.value = 'Please select at least one image.';
+                return;
+            }
+            
+            // Layout parameters
+            const total_width = document.getElementById('total_width').value;
+            const align = document.getElementById('align').value;
+            const direction = document.getElementById('direction').value;
+            const background_color = document.getElementById('background_color').value;
+            const width = document.getElementById('width').value;
+            const caption_align = document.getElementById('caption_align').value;
+            const image_style = document.getElementById('image_style').value;
+            const image_gap = document.getElementById('image_gap').value;
+            
+            // Header
+            const header_background = document.getElementById('header_background').value;
+            const header_align = document.getElementById('header_align').value;
+            const header = document.getElementById('header').value;
+            
+            // Footer
+            const footer_background = document.getElementById('footer_background').value;
+            const footer_align = document.getElementById('footer_align').value;
+            const footer = document.getElementById('footer').value;
+            
+            let template = `{{Multiple image\n`;
+            
+            // Add layout parameters
+            if (total_width) template += `| total_width = ${total_width}\n`;
+            if (align && align !== 'right') template += `| align = ${align}\n`;
+            if (direction && direction !== 'horizontal') template += `| direction = ${direction}\n`;
+            if (background_color) template += `| background color = ${background_color}\n`;
+            if (width) template += `| width = ${width}\n`;
+            if (caption_align && caption_align !== 'left') template += `| caption_align = ${caption_align}\n`;
+            if (image_style && image_style !== 'border:1;') template += `| image_style = ${image_style}\n`;
+            if (image_gap && image_gap !== '5') template += `| image_gap = ${image_gap}\n`;
+            
+            // Add header
+            if (header_background) template += `| header_background = ${header_background}\n`;
+            if (header_align && header_align !== 'center') template += `| header_align = ${header_align}\n`;
+            if (header) template += `| header = ${header}\n`;
+            
+            // Add images
+            selectedImages.forEach((image, index) => {
+                const imgNum = index + 1;
+                const fileName = image.title.replace('File:', '');
+                
+                template += `\n<!--image ${imgNum}-->\n`;
+                template += `| image${imgNum} = ${fileName}\n`;
+                
+                const widthVal = document.getElementById(`width${imgNum}`).value;
+                const classVal = document.getElementById(`class${imgNum}`).value;
+                const altVal = document.getElementById(`alt${imgNum}`).value;
+                const linkVal = document.getElementById(`link${imgNum}`).value;
+                const thumbtimeVal = document.getElementById(`thumbtime${imgNum}`).value;
+                const captionVal = document.getElementById(`caption${imgNum}`).value;
+                
+                if (widthVal) template += `| width${imgNum} = ${widthVal}\n`;
+                if (classVal) template += `| class${imgNum} = ${classVal}\n`;
+                if (altVal) template += `| alt${imgNum} = ${altVal}\n`;
+                if (linkVal) template += `| link${imgNum} = ${linkVal}\n`;
+                if (thumbtimeVal) template += `| thumbtime${imgNum} = ${thumbtimeVal}\n`;
+                if (captionVal) template += `| caption${imgNum} = ${captionVal}\n`;
+            });
+            
+            // Add footer
+            if (footer_background) template += `| footer_background = ${footer_background}\n`;
+            if (footer_align && footer_align !== 'left') template += `| footer_align = ${footer_align}\n`;
+            if (footer) template += `| footer = ${footer}\n`;
+            
+            template += `}}`;
+            
+            templateOutput.value = template;
+        });
+        
+        // Copy template to clipboard
+        copyTemplateButton.addEventListener('click', () => {
+            templateOutput.select();
+            document.execCommand('copy');
+            alert('Template copied to clipboard!');
+        });
+        
+        // Allow pressing Enter in search fields
+        searchQuery.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchButton.click();
+            }
+        });
+        
+        searchCategory.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchCategoryButton.click();
+            }
+        });
+        
+        categoryQuery.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                categoryButton.click();
+            }
+        });
+        
+        manualImageCount.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                manualGenerateFields.click();
+            }
+        });
+        
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-category-container')) {
+                categorySuggestions.style.display = 'none';
+            }
+        });
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', () => {
+            initColorPickers();
+        });
+
+        document.getElementById('reset-button').addEventListener('click', function() {
+            // Clear selected images
+            selectedImages = [];
+            selectedImagesContainer.innerHTML = '';
+            imageOptionsContainer.innerHTML = '';
+            
+            // Clear search results
+            searchResults.innerHTML = '';
+            categoryResults.innerHTML = '';
+            
+            // Reset form fields
+            document.getElementById('total_width').value = '600';
+            document.getElementById('align').value = 'right';
+            document.getElementById('direction').value = 'horizontal';
+            document.getElementById('background_color').value = '';
+            document.getElementById('background_color_picker').value = '#ffffff';
+            document.getElementById('background_color_preview').style.backgroundColor = '';
+            document.getElementById('width').value = '';
+            document.getElementById('caption_align').value = 'left';
+            document.getElementById('image_style').value = 'border:1;';
+            document.getElementById('image_gap').value = '5';
+            document.getElementById('header_background').value = '';
+            document.getElementById('header_background_picker').value = '#ffffff';
+            document.getElementById('header_background_preview').style.backgroundColor = '';
+            document.getElementById('header_align').value = 'center';
+            document.getElementById('header').value = '';
+            document.getElementById('footer_background').value = '';
+            document.getElementById('footer_background_picker').value = '#ffffff';
+            document.getElementById('footer_background_preview').style.backgroundColor = '';
+            document.getElementById('footer_align').value = 'left';
+            document.getElementById('footer').value = '';
+            document.getElementById('template-output').value = '';
+            
+            // Clear manual inputs
+            document.getElementById('manual-image-count').value = '1';
+            manualImagesContainer.innerHTML = '';
+            
+            // Clear search inputs
+            document.getElementById('search-query').value = '';
+            document.getElementById('search-category').value = '';
+            document.getElementById('category-query').value = '';
+            
+            // Hide suggestions
+            categorySuggestions.style.display = 'none';
+        });
+
+        // Update category selection to remove "Category:" prefix
+        function displayCategorySuggestions(categories) {
+            categorySuggestions.innerHTML = '';
+            
+            categories.forEach(category => {
+                const suggestion = document.createElement('div');
+                suggestion.className = 'category-suggestion';
+                suggestion.textContent = category['*'];
+                suggestion.addEventListener('click', () => {
+                    categoryQuery.value = category['*']; // Removed "Category:" prefix
+                    searchCategory.value = category['*'];
+                    categorySuggestions.style.display = 'none';
+                });
+                categorySuggestions.appendChild(suggestion);
+            });
+            
+            categorySuggestions.style.display = 'block';
+        }
+
+        // Update category browsing to handle with or without "Category:" prefix
+        categoryButton.addEventListener('click', async () => {
+            let category = categoryQuery.value.trim();
+            if (!category) return;
+            
+            // Add "Category:" prefix if not already present
+            if (!category.startsWith('Category:')) {
+                category = `Category:${category}`;
+            }
+            
+            currentCategoryPage = 1;
+            await loadCategoryPage(category, currentCategoryPage);
+        });
+    </script>
+</body>
+</html>
